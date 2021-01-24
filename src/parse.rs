@@ -58,7 +58,7 @@ pub fn parse_data(data: &str) -> Result<Vec<Section>, ParseError> {
             if x.starts_with(keyword) {
                 match *action {
                     KeywordActions::NewSection => v.push(Section::new()),
-                    KeywordActions::Label => {
+                    _ => {
                         let e = extract_text(x, keyword);
                         if e.is_none() {
                             return Err(ParseError::Empty(x));
@@ -69,23 +69,18 @@ pub fn parse_data(data: &str) -> Result<Vec<Section>, ParseError> {
                             return Err(ParseError::Syntax(keyword, e.unwrap()));
                         }
 
-                        last.unwrap().label = e.unwrap();
-                    }
-                    KeywordActions::Translation(lang) => {
-                        let e = extract_text(x, keyword);
-                        if e.is_none() {
-                            return Err(ParseError::Empty(x));
+                        match *action {
+                            KeywordActions::Label => {
+                                last.unwrap().label = e.unwrap();
+                            }
+                            KeywordActions::Translation(lang) => {
+                                last.unwrap().translations.push(Translation {
+                                    text: e.unwrap(),
+                                    language: lang,
+                                });
+                            }
+                            _ => {}
                         }
-
-                        let last = v.last_mut();
-                        if last.is_none() {
-                            return Err(ParseError::Syntax(keyword, e.unwrap()));
-                        }
-
-                        last.unwrap().translations.push(Translation {
-                            text: e.unwrap(),
-                            language: lang,
-                        });
                     }
                 }
             }
