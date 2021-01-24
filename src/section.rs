@@ -1,4 +1,4 @@
-#![allow(dead_code)]
+use crate::section::Language::{EN, PL};
 
 #[derive(Debug)]
 pub struct Section<'a> {
@@ -23,6 +23,16 @@ impl Section<'_> {
         Section {
             label: "",
             translations: vec![],
+        }
+    }
+}
+
+impl From<&str> for Language {
+    fn from(s: &str) -> Self {
+        match s {
+            "PL" => PL,
+            "EN" => EN,
+            lang => panic!("invalid language {}", lang),
         }
     }
 }

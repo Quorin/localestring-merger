@@ -4,7 +4,21 @@ use std::path::Path;
 use thiserror::Error;
 
 use crate::section::Language::{EN, PL};
-use crate::section::{Section, Translation};
+use crate::section::{Language, Section, Translation};
+
+#[derive(Debug)]
+pub enum KeywordActions {
+    NewSection,
+    Label,
+    Translation(Language),
+}
+
+static KEYWORDS: [(&str, KeywordActions); 4] = [
+    ("section", KeywordActions::NewSection),
+    ("TXT", KeywordActions::Label),
+    ("PL", KeywordActions::Translation(PL)),
+    ("EN", KeywordActions::Translation(EN)),
+];
 
 pub fn read_file<T: AsRef<Path>>(filepath: T) -> String {
     read_to_string(filepath).unwrap()
@@ -26,8 +40,10 @@ fn extract_text<'a>(text: &'a str, key: &'a str) -> Option<&'a str> {
 
 #[derive(Error, Debug)]
 pub enum ParseError<'a> {
-    #[error("Invalid syntax near {0}\t{1}")]
+    #[error("invalid syntax near {0}\t{1}")]
     Syntax(&'a str, &'a str),
+    #[error("empty or invalid line near {0}")]
+    Empty(&'a str),
 }
 
 pub fn parse_data(data: &str) -> Result<Vec<Section>, ParseError> {
@@ -38,39 +54,39 @@ pub fn parse_data(data: &str) -> Result<Vec<Section>, ParseError> {
             continue;
         }
 
-        if x.starts_with("section") {
-            v.push(Section::new())
-        } else if x.starts_with("TXT") {
-            let extracted = extract_text(x, "TXT");
-            if let Some(value) = extracted {
-                if let Some(last) = v.last_mut() {
-                    last.label = value;
-                } else {
-                    return Err(ParseError::Syntax("TXT", value));
-                }
-            }
-        } else if x.starts_with("PL") {
-            let extracted = extract_text(x, "PL");
-            if let Some(value) = extracted {
-                if let Some(last) = v.last_mut() {
-                    last.translations.push(Translation {
-                        text: value,
-                        language: PL,
-                    })
-                } else {
-                    return Err(ParseError::Syntax("PL", value));
-                }
-            }
-        } else if x.starts_with("EN") {
-            let extracted = extract_text(x, "EN");
-            if let Some(value) = extracted {
-                if let Some(last) = v.last_mut() {
-                    last.translations.push(Translation {
-                        text: value,
-                        language: EN,
-                    })
-                } else {
-                    return Err(ParseError::Syntax("EN", value));
+        for (keyword, action) in KEYWORDS.iter() {
+            if x.starts_with(keyword) {
+                match *action {
+                    KeywordActions::NewSection => v.push(Section::new()),
+                    KeywordActions::Label => {
+                        let e = extract_text(x, keyword);
+                        if e.is_none() {
+                            return Err(ParseError::Empty(x));
+                        }
+
+                        let last = v.last_mut();
+                        if last.is_none() {
+                            return Err(ParseError::Syntax(keyword, e.unwrap()));
+                        }
+
+                        last.unwrap().label = e.unwrap();
+                    }
+                    KeywordActions::Translation(lang) => {
+                        let e = extract_text(x, keyword);
+                        if e.is_none() {
+                            return Err(ParseError::Empty(x));
+                        }
+
+                        let last = v.last_mut();
+                        if last.is_none() {
+                            return Err(ParseError::Syntax(keyword, e.unwrap()));
+                        }
+
+                        last.unwrap().translations.push(Translation {
+                            text: e.unwrap(),
+                            language: lang,
+                        });
+                    }
                 }
             }
         }
