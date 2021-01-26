@@ -1,19 +1,14 @@
 use crate::section::Language::{EN, PL};
+use std::collections::BTreeMap;
 use std::fmt::{Display, Formatter};
 
 #[derive(Debug, PartialEq)]
 pub struct Section<'a> {
     pub label: &'a str,
-    pub translations: Vec<Translation<'a>>,
+    pub translations: BTreeMap<Language, &'a str>,
 }
 
-#[derive(Debug, PartialEq)]
-pub struct Translation<'a> {
-    pub language: Language,
-    pub text: &'a str,
-}
-
-#[derive(Clone, Copy, Debug, PartialEq)]
+#[derive(Clone, Copy, Debug, PartialEq, Ord, PartialOrd, Eq)]
 pub enum Language {
     PL,
     EN,
@@ -23,17 +18,13 @@ impl Section<'_> {
     pub fn new() -> Self {
         Section {
             label: "",
-            translations: vec![],
+            translations: BTreeMap::new(),
         }
     }
     pub fn generate(&self) -> String {
         let mut args: String = "".to_string();
         for x in &self.translations {
-            args.push_str(&*format!(
-                "\t{lang}\t\"{text}\"\n",
-                lang = x.language,
-                text = x.text
-            ));
+            args.push_str(&*format!("\t{lang}\t\"{text}\"\n", lang = x.0, text = x.1));
         }
 
         format!(
@@ -66,7 +57,7 @@ impl Display for Language {
 #[cfg(test)]
 mod tests {
     use crate::section::Language::{EN, PL};
-    use crate::section::{Language, Section, Translation};
+    use crate::section::{Language, Section};
 
     #[test]
     fn from_trait_language_works() {
@@ -78,19 +69,10 @@ mod tests {
 
     #[test]
     fn generates_file_data() {
-        let section = Section {
-            label: "lab1",
-            translations: vec![
-                Translation {
-                    text: "tr1",
-                    language: PL,
-                },
-                Translation {
-                    text: "tr2",
-                    language: EN,
-                },
-            ],
-        };
+        let mut section = Section::new();
+        section.label = "lab1";
+        section.translations.insert(PL, "tr1");
+        section.translations.insert(EN, "tr2");
 
         assert_eq!(
             section.generate(),

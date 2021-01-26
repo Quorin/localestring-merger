@@ -4,7 +4,7 @@ use std::path::Path;
 use thiserror::Error;
 
 use crate::section::Language::{EN, PL};
-use crate::section::{Language, Section, Translation};
+use crate::section::{Language, Section};
 
 #[derive(Debug, PartialEq)]
 pub enum KeywordActions {
@@ -52,6 +52,8 @@ pub enum ParseError<'a> {
     Syntax(&'a str, &'a str),
     #[error("empty or invalid line near {0}")]
     Empty(&'a str),
+    #[error("language {0} already exists in label {1}")]
+    LanguageDuplicate(Language, &'a str),
     #[error(transparent)]
     Io(#[from] std::io::Error),
 }
@@ -79,10 +81,10 @@ pub fn parse_data(data: &str) -> Result<Vec<Section>, ParseError> {
                         last.label = e;
                     }
                     KeywordActions::Translation(lang) => {
-                        last.translations.push(Translation {
-                            text: e,
-                            language: lang,
-                        });
+                        if last.translations.contains_key(&lang) {
+                            return Err(ParseError::LanguageDuplicate(lang, last.label));
+                        }
+                        last.translations.insert(lang, e);
                     }
                     _ => {}
                 }
@@ -95,9 +97,9 @@ pub fn parse_data(data: &str) -> Result<Vec<Section>, ParseError> {
 
 #[cfg(test)]
 mod tests {
-    use crate::parse::{extract_text, omit_line, parse_data};
+    use crate::parse::{extract_text, omit_line, parse_data, ParseError};
     use crate::section::Language::{EN, PL};
-    use crate::section::{Section, Translation};
+    use crate::section::Section;
 
     use super::read_file;
 
@@ -156,35 +158,31 @@ mod tests {
     #[test]
     fn parsing_works() {
         let res = parse_data(FILE_STR);
-        let sections = vec![
-            Section {
-                label: "s1",
-                translations: vec![
-                    Translation {
-                        text: "pl1",
-                        language: PL,
-                    },
-                    Translation {
-                        text: "en1",
-                        language: EN,
-                    },
-                ],
-            },
-            Section {
-                label: "s2",
-                translations: vec![
-                    Translation {
-                        text: "pl2",
-                        language: PL,
-                    },
-                    Translation {
-                        text: "en2",
-                        language: EN,
-                    },
-                ],
-            },
-        ];
+
+        let mut sections = vec![Section::new(), Section::new()];
+        sections[0].label = "s1";
+        sections[1].label = "s2";
+
+        sections[0].translations.insert(PL, "pl1");
+        sections[0].translations.insert(EN, "en1");
+
+        sections[1].translations.insert(PL, "pl2");
+        sections[1].translations.insert(EN, "en2");
 
         assert_eq!(res.unwrap(), sections);
+    }
+
+    #[test]
+    fn error_if_duplicate() {
+        assert!(match parse_data(
+            "section\n\
+            TXT	\"s1\"\n\
+            PL	\"pl1\"\n\
+            PL	\"pl2\"\n\
+        end"
+        ) {
+            Err(ParseError::LanguageDuplicate(PL, "s1")) => true,
+            _ => false,
+        })
     }
 }
