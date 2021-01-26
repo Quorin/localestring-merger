@@ -24,13 +24,21 @@ pub fn read_file<T: AsRef<Path>>(filepath: T) -> std::io::Result<String> {
     read_to_string(filepath)
 }
 
+pub fn omit_line(line: &str) -> bool {
+    line.starts_with("#") || line.is_empty()
+}
+
 fn extract_text<'a>(text: &'a str, key: &'a str) -> Option<&'a str> {
     let elements = text.split("\t").collect::<Vec<&str>>();
-    if elements.get(0).unwrap().starts_with(key) {
-        let val = elements
-            .get(1)
-            .unwrap()
-            .trim_matches(|c| c == '\"' || c == '\\');
+    if match elements.get(0) {
+        Some(v) => v.starts_with(key),
+        None => return None,
+    } {
+        let val = match elements.get(1) {
+            Some(a) => a,
+            _ => return None,
+        }
+        .trim_matches(|c| c == '\"' || c == '\\');
 
         return Some(val);
     }
@@ -52,7 +60,7 @@ pub fn parse_data(data: &str) -> Result<Vec<Section>, ParseError> {
     let mut v: Vec<Section> = vec![];
 
     for x in data.lines().map(|l| l.trim()) {
-        if x.starts_with("#") || x.is_empty() {
+        if omit_line(x) {
             continue;
         }
 
@@ -83,4 +91,100 @@ pub fn parse_data(data: &str) -> Result<Vec<Section>, ParseError> {
     }
 
     Ok(v)
+}
+
+#[cfg(test)]
+mod tests {
+    use crate::parse::{extract_text, omit_line, parse_data};
+    use crate::section::Language::{EN, PL};
+    use crate::section::{Section, Translation};
+
+    use super::read_file;
+
+    static FILE_STR: &str = "\
+        #hello\n\
+        section\n\
+            TXT	\"s1\"\n\
+            PL	\"pl1\"\n\
+            EN	\"en1\"\n\
+        end\n
+        section\n\
+            TXT	\"s2\"\n\
+            PL	\"pl2\"\n\
+            EN	\"en2\"\n\
+        end";
+
+    #[test]
+    fn omit_line_if_empty() {
+        assert_eq!(omit_line(""), true);
+    }
+
+    #[test]
+    fn omit_line_if_commented() {
+        assert_eq!(omit_line("#test"), true);
+    }
+
+    #[test]
+    fn not_omit_line_if_normal() {
+        assert_eq!(omit_line("PL\t\"Hello, world!\""), false);
+    }
+
+    #[test]
+    fn reads_file() {
+        assert_eq!(read_file("Cargo.toml").is_ok(), true)
+    }
+    #[test]
+    fn error_if_not_found_file() {
+        assert_eq!(read_file("hello.world").is_err(), true)
+    }
+
+    #[test]
+    fn extract_works() {
+        assert_eq!(extract_text("TXT\t\"\\asd\"", "TXT"), Some("asd"))
+    }
+
+    #[test]
+    fn none_if_no_keyword_while_extract() {
+        assert_eq!(extract_text("asd", "TXT"), None)
+    }
+
+    #[test]
+    fn none_if_no_tab_while_extract() {
+        assert_eq!(extract_text("TXT\"\\asd\"", "TXT"), None)
+    }
+
+    #[test]
+    fn parsing_works() {
+        let res = parse_data(FILE_STR);
+        let sections = vec![
+            Section {
+                label: "s1",
+                translations: vec![
+                    Translation {
+                        text: "pl1",
+                        language: PL,
+                    },
+                    Translation {
+                        text: "en1",
+                        language: EN,
+                    },
+                ],
+            },
+            Section {
+                label: "s2",
+                translations: vec![
+                    Translation {
+                        text: "pl2",
+                        language: PL,
+                    },
+                    Translation {
+                        text: "en2",
+                        language: EN,
+                    },
+                ],
+            },
+        ];
+
+        assert_eq!(res.unwrap(), sections);
+    }
 }
