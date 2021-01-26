@@ -1,4 +1,5 @@
 use crate::section::Language::{EN, PL};
+use std::fmt::{Display, Formatter};
 
 #[derive(Debug, PartialEq)]
 pub struct Section<'a> {
@@ -25,6 +26,25 @@ impl Section<'_> {
             translations: vec![],
         }
     }
+    pub fn generate(&self) -> String {
+        let mut args: String = "".to_string();
+        for x in &self.translations {
+            args.push_str(&*format!(
+                "\t{lang}\t\"{text}\"\n",
+                lang = x.language,
+                text = x.text
+            ));
+        }
+
+        format!(
+            "section\n\
+        \tTXT\t\"{label}\"\n\
+        {translations}\
+        end",
+            label = &self.label,
+            translations = args
+        )
+    }
 }
 
 impl From<&str> for Language {
@@ -37,9 +57,16 @@ impl From<&str> for Language {
     }
 }
 
+impl Display for Language {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{:?}", self)
+    }
+}
+
 #[cfg(test)]
 mod tests {
-    use crate::section::Language;
+    use crate::section::Language::{EN, PL};
+    use crate::section::{Language, Section, Translation};
 
     #[test]
     fn from_trait_language_works() {
@@ -47,5 +74,27 @@ mod tests {
         let en: Language = "EN".into();
         assert_eq!(pl, Language::PL);
         assert_eq!(en, Language::EN);
+    }
+
+    #[test]
+    fn generates_file_data() {
+        let section = Section {
+            label: "lab1",
+            translations: vec![
+                Translation {
+                    text: "tr1",
+                    language: PL,
+                },
+                Translation {
+                    text: "tr2",
+                    language: EN,
+                },
+            ],
+        };
+
+        assert_eq!(
+            section.generate(),
+            "section\n\tTXT\t\"lab1\"\n\tPL\t\"tr1\"\n\tEN\t\"tr2\"\nend"
+        )
     }
 }
