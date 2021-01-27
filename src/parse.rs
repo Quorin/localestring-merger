@@ -95,9 +95,30 @@ pub fn parse_data(data: &str) -> Result<Vec<Section>, ParseError> {
     Ok(v)
 }
 
+pub fn join_sections<'a>(mut base: Vec<Section<'a>>, new: Vec<Section<'a>>) -> Vec<Section<'a>> {
+    for mut x in new {
+        let pos = base.iter_mut().find(|f| f.label == x.label);
+        if let Some(elem) = pos {
+            for new_t in x.translations.iter_mut() {
+                if let Some(old_t) = elem.translations.iter_mut().find(|(t, _)| t == &new_t.0) {
+                    *old_t.1 = *new_t.1;
+                } else {
+                    elem.translations.insert(*new_t.0, new_t.1);
+                }
+            }
+        } else {
+            base.push(x)
+        }
+    }
+
+    base
+}
+
 #[cfg(test)]
 mod tests {
-    use crate::parse::{extract_text, omit_line, parse_data, ParseError};
+    use std::collections::BTreeMap;
+
+    use crate::parse::{extract_text, join_sections, omit_line, parse_data, ParseError};
     use crate::section::Language::{EN, PL};
     use crate::section::Section;
 
@@ -115,6 +136,73 @@ mod tests {
             PL	\"pl2\"\n\
             EN	\"en2\"\n\
         end";
+
+    #[test]
+    fn joins_sections_with_different_labels() {
+        let mut s1 = Section {
+            label: "asd",
+            translations: BTreeMap::new(),
+        };
+        let mut s2 = Section {
+            label: "asd2",
+            translations: BTreeMap::new(),
+        };
+        s1.translations.insert(PL, "pl1");
+        s2.translations.insert(PL, "pl2");
+
+        let v1 = vec![s1];
+        let v2 = vec![s2];
+
+        // result
+
+        let mut res1 = Section {
+            label: "asd",
+            translations: BTreeMap::new(),
+        };
+        let mut res2 = Section {
+            label: "asd2",
+            translations: BTreeMap::new(),
+        };
+
+        res1.translations.insert(PL, "pl1");
+        res2.translations.insert(PL, "pl2");
+
+        let res_vec = vec![res1, res2];
+
+        assert_eq!(join_sections(v1, v2), res_vec);
+    }
+
+    #[test]
+    fn joins_sections_with_duplicated_labels() {
+        let mut s1 = Section {
+            label: "asd",
+            translations: BTreeMap::new(),
+        };
+        let mut s2 = Section {
+            label: "asd",
+            translations: BTreeMap::new(),
+        };
+        s1.translations.insert(PL, "pl1");
+        s1.translations.insert(EN, "en1");
+        s2.translations.insert(PL, "pl2");
+
+        let v1 = vec![s1];
+        let v2 = vec![s2];
+
+        // result
+
+        let mut res1 = Section {
+            label: "asd",
+            translations: BTreeMap::new(),
+        };
+
+        res1.translations.insert(EN, "en1");
+        res1.translations.insert(PL, "pl2");
+
+        let res_vec = vec![res1];
+
+        assert_eq!(join_sections(v1, v2), res_vec);
+    }
 
     #[test]
     fn omit_line_if_empty() {
@@ -135,6 +223,7 @@ mod tests {
     fn reads_file() {
         assert_eq!(read_file("Cargo.toml").is_ok(), true)
     }
+
     #[test]
     fn error_if_not_found_file() {
         assert_eq!(read_file("hello.world").is_err(), true)
