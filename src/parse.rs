@@ -95,7 +95,7 @@ pub fn parse_data(data: &str) -> Result<Vec<Section>, ParseError> {
     Ok(v)
 }
 
-pub fn join_sections<'a>(mut base: Vec<Section<'a>>, new: Vec<Section<'a>>) -> Vec<Section<'a>> {
+pub fn merge_sections<'a>(mut base: Vec<Section<'a>>, new: Vec<Section<'a>>) -> Vec<Section<'a>> {
     for mut x in new {
         let pos = base.iter_mut().find(|f| f.label == x.label);
         if let Some(elem) = pos {
@@ -118,7 +118,7 @@ pub fn join_sections<'a>(mut base: Vec<Section<'a>>, new: Vec<Section<'a>>) -> V
 mod tests {
     use std::collections::BTreeMap;
 
-    use crate::parse::{extract_text, join_sections, omit_line, parse_data, ParseError};
+    use crate::parse::{extract_text, merge_sections, omit_line, parse_data, ParseError};
     use crate::section::Language::{EN, PL};
     use crate::section::Section;
 
@@ -138,7 +138,7 @@ mod tests {
         end";
 
     #[test]
-    fn joins_sections_with_different_labels() {
+    fn merges_sections_with_different_labels() {
         let mut s1 = Section {
             label: "asd",
             translations: BTreeMap::new(),
@@ -169,11 +169,11 @@ mod tests {
 
         let res_vec = vec![res1, res2];
 
-        assert_eq!(join_sections(v1, v2), res_vec);
+        assert_eq!(merge_sections(v1, v2), res_vec);
     }
 
     #[test]
-    fn joins_sections_with_duplicated_labels() {
+    fn merges_sections_with_duplicated_labels() {
         let mut s1 = Section {
             label: "asd",
             translations: BTreeMap::new(),
@@ -201,7 +201,7 @@ mod tests {
 
         let res_vec = vec![res1];
 
-        assert_eq!(join_sections(v1, v2), res_vec);
+        assert_eq!(merge_sections(v1, v2), res_vec);
     }
 
     #[test]
