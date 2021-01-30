@@ -47,13 +47,13 @@ fn extract_text<'a>(text: &'a str, key: &'a str) -> Option<&'a str> {
 }
 
 #[derive(Error, Debug)]
-pub enum ParseError<'a> {
+pub enum ParseError {
     #[error("invalid syntax near {0}\t{1}")]
-    Syntax(&'a str, &'a str),
+    Syntax(String, String),
     #[error("empty or invalid line near {0}")]
-    Empty(&'a str),
+    Empty(String),
     #[error("language {0} already exists in label {1}")]
-    LanguageDuplicate(Language, &'a str),
+    LanguageDuplicate(Language, String),
     #[error(transparent)]
     Io(#[from] std::io::Error),
 }
@@ -73,8 +73,10 @@ pub fn parse_data(data: &str) -> Result<Vec<Section>, ParseError> {
                     continue;
                 }
 
-                let e = extract_text(x, keyword).ok_or(ParseError::Empty(x))?;
-                let last = v.last_mut().ok_or(ParseError::Syntax(keyword, e))?;
+                let e = extract_text(x, keyword).ok_or(ParseError::Empty(x.to_owned()))?;
+                let last = v
+                    .last_mut()
+                    .ok_or(ParseError::Syntax(keyword.to_string(), e.to_owned()))?;
 
                 match *action {
                     KeywordActions::Label => {
@@ -82,7 +84,7 @@ pub fn parse_data(data: &str) -> Result<Vec<Section>, ParseError> {
                     }
                     KeywordActions::Translation(lang) => {
                         if last.translations.contains_key(&lang) {
-                            return Err(ParseError::LanguageDuplicate(lang, last.label));
+                            return Err(ParseError::LanguageDuplicate(lang, last.label.to_owned()));
                         }
                         last.translations.insert(lang, e);
                     }
@@ -263,14 +265,16 @@ mod tests {
 
     #[test]
     fn error_if_duplicate() {
-        assert!(match parse_data(
+        let p = parse_data(
             "section\n\
             TXT	\"s1\"\n\
             PL	\"pl1\"\n\
             PL	\"pl2\"\n\
-        end"
-        ) {
-            Err(ParseError::LanguageDuplicate(PL, "s1")) => true,
+        end",
+        );
+
+        assert!(match p {
+            Err(ParseError::LanguageDuplicate(PL, label)) => label == "s1".to_owned(),
             _ => false,
         })
     }
