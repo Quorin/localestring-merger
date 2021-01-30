@@ -99,9 +99,9 @@ where
     let cur_data = &*read_to_string(cur_file)?;
     let new_data = &*read_to_string(new_file)?;
 
-    let cur_sections = parse_data(cur_data);
-    let new_sections = parse_data(new_data);
-    let merged = merge_sections(cur_sections?, new_sections?);
+    let cur_sections = parse_data(cur_data)?;
+    let new_sections = parse_data(new_data)?;
+    let merged = merge_sections(cur_sections, new_sections);
     let generated: String = merged
         .iter()
         .map(|f| format!("{}\n\n", f.generate()))
