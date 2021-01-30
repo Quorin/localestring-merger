@@ -3,6 +3,7 @@
 use crate::cmd::run;
 
 mod cmd;
+mod convert;
 mod parse;
 mod section;
 

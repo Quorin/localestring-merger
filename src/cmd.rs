@@ -1,4 +1,7 @@
+use crate::convert::{convert_data, ConvertError};
 use crate::parse::{merge_sections, parse_data, ParseError};
+use crate::section::Language;
+use crate::section::Language::{EN, PL};
 use dialoguer::theme::ColorfulTheme;
 use dialoguer::{Input, Select};
 use std::path::Path;
@@ -34,12 +37,21 @@ impl From<usize> for Action {
     }
 }
 
-pub fn run() -> std::io::Result<()> {
-    println!("Choose action:");
+impl From<usize> for Language {
+    fn from(l: usize) -> Self {
+        match l {
+            0 => PL,
+            1 => EN,
+            _ => unreachable!(),
+        }
+    }
+}
 
+pub fn run() -> std::io::Result<()> {
     let select_items = vec![Action::Merge, Action::Convert, Action::FindMissing];
     let theme = &ColorfulTheme::default();
     let option: Action = Select::with_theme(theme)
+        .with_prompt("Choose action:")
         .items(&select_items)
         .default(0)
         .interact()?
@@ -69,8 +81,16 @@ pub fn run() -> std::io::Result<()> {
         Action::Convert => {
             let old_file: String = Input::with_theme(theme)
                 .with_prompt("Enter the filename containing old translations")
-                .default("locale_string.txt".into())
+                .default("locale_string_old.txt".into())
                 .interact_text()?;
+
+            let languages = vec![PL, EN];
+            let lang: Language = Select::with_theme(theme)
+                .with_prompt("What language is in the file?")
+                .items(&languages)
+                .default(0)
+                .interact()?
+                .into();
 
             let new_file: String = Input::with_theme(theme)
                 .with_prompt("Enter the filename to which converted translations will be saved")
@@ -78,6 +98,8 @@ pub fn run() -> std::io::Result<()> {
                 .interact_text()?;
 
             // convert
+
+            convert(&old_file, &new_file, lang).unwrap();
         }
         Action::FindMissing => {
             let file: String = Input::with_theme(theme)
@@ -86,6 +108,23 @@ pub fn run() -> std::io::Result<()> {
                 .interact_text()?;
         }
     }
+
+    Ok(())
+}
+
+fn convert<T, U>(old_file: T, save_file: U, lang: Language) -> Result<(), ConvertError>
+where
+    T: AsRef<Path>,
+    U: AsRef<Path>,
+{
+    let old_data = &*read_to_string(old_file)?;
+    let converted_data = convert_data(old_data, lang)?;
+    let generated: String = converted_data
+        .iter()
+        .map(|f| format!("{}\n\n", f.generate()))
+        .collect();
+
+    let _ = std::fs::write(save_file, &generated)?;
 
     Ok(())
 }
