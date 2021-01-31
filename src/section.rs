@@ -64,6 +64,16 @@ impl Section<'_> {
     }
 }
 
+pub fn check_string_arguments(left: &str, right: &str) -> bool {
+    for x in ARGUMENT_TYPES.iter() {
+        if left.match_indices(x).count() != right.match_indices(x).count() {
+            return false;
+        }
+    }
+
+    true
+}
+
 impl From<&str> for Language {
     fn from(s: &str) -> Self {
         match s {

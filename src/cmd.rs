@@ -1,8 +1,9 @@
 use crate::convert::{convert_data, ConvertError};
 use crate::find::{find_incomplete_sections, find_missing_labels};
-use crate::parse::{merge_sections, parse_data, read_file, ParseError};
-use crate::section::Language;
+use crate::parse::ParseError::ArgumentMismatch;
+use crate::parse::{merge_sections, parse_clientside, parse_data, read_file, ParseError};
 use crate::section::Language::{EN, PL};
+use crate::section::{check_string_arguments, Language};
 use dialoguer::theme::ColorfulTheme;
 use dialoguer::{Input, Select};
 use std::fmt::{Display, Formatter};
@@ -39,6 +40,7 @@ pub enum Action {
     Merge,
     Convert,
     FindIncomplete,
+    CheckArguments,
 }
 
 impl Display for Action {
@@ -47,6 +49,7 @@ impl Display for Action {
             Action::Merge => write!(f, "{}", "Merge translations"),
             Action::Convert => write!(f, "{}", "Convert old file"),
             Action::FindIncomplete => write!(f, "{}", "Find incomplete translations"),
+            Action::CheckArguments => write!(f, "{}", "Check arguments"),
         }
     }
 }
@@ -57,6 +60,7 @@ impl From<usize> for Action {
             0 => Action::Merge,
             1 => Action::Convert,
             2 => Action::FindIncomplete,
+            3 => Action::CheckArguments,
             _ => unreachable!(),
         }
     }
@@ -73,7 +77,12 @@ impl From<usize> for Language {
 }
 
 pub fn run() -> std::io::Result<()> {
-    let select_items = vec![Action::Merge, Action::Convert, Action::FindIncomplete];
+    let select_items = vec![
+        Action::Merge,
+        Action::Convert,
+        Action::FindIncomplete,
+        Action::CheckArguments,
+    ];
     let theme = &ColorfulTheme::default();
     let option: Action = Select::with_theme(theme)
         .with_prompt("Choose action:")
@@ -172,6 +181,83 @@ pub fn run() -> std::io::Result<()> {
                 selected_locale_type,
             ) {
                 println!("Error: {:#?}", e);
+            }
+        }
+        Action::CheckArguments => {
+            let locale_types = vec![LocaleType::LocaleString, LocaleType::LocaleGameInterface];
+            let selected_locale_type: LocaleType = Select::with_theme(theme)
+                .with_prompt("Choose file type:")
+                .items(&locale_types)
+                .default(0)
+                .interact()?
+                .into();
+
+            let file: Option<String>;
+            let mut second_file: Option<String> = None;
+
+            if selected_locale_type == LocaleType::LocaleGameInterface {
+                file = Some(
+                    Input::with_theme(theme)
+                        .with_prompt("Enter the filename containing translations")
+                        .default("locale_game.txt".into())
+                        .interact_text()?,
+                );
+                second_file = Some(
+                    Input::with_theme(theme)
+                        .with_prompt("Enter the filename containing translations to compare")
+                        .default("locale_game2.txt".into())
+                        .interact_text()?,
+                );
+            } else {
+                file = Some(
+                    Input::with_theme(theme)
+                        .with_prompt("Enter the filename containing translations")
+                        .default("locale_string.txt".into())
+                        .interact_text()?,
+                );
+            }
+
+            if let Err(e) =
+                check_arguments(file.as_ref(), second_file.as_ref(), selected_locale_type)
+            {
+                println!("Error: {:#?}", e);
+            }
+        }
+    }
+
+    Ok(())
+}
+
+fn check_arguments<T>(
+    file: Option<T>,
+    secondary_file: Option<T>,
+    locale_type: LocaleType,
+) -> Result<(), ParseError>
+where
+    T: AsRef<Path>,
+{
+    let first_file_data = &*read_file(file.unwrap())?;
+    match locale_type {
+        LocaleType::LocaleString => {
+            let sections = parse_data(first_file_data)?;
+            for s in &sections {
+                if !s.check_translations_arguments() {
+                    return Err(ParseError::ArgumentMismatch(s.label.to_string()));
+                }
+            }
+        }
+        LocaleType::LocaleGameInterface => {
+            let second_file_data = &*read_file(secondary_file.unwrap())?;
+
+            let map_first = parse_clientside(first_file_data)?;
+            let map_second = parse_clientside(second_file_data)?;
+
+            for (k, v) in map_first.iter() {
+                if let Some(map_value) = map_second.get(k) {
+                    if !check_string_arguments(v, map_value) {
+                        return Err(ArgumentMismatch(k.to_owned()));
+                    }
+                }
             }
         }
     }
