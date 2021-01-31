@@ -14,6 +14,12 @@ pub enum Language {
     EN,
 }
 
+impl Language {
+    pub fn variants_count() -> usize {
+        2 // PL,EN
+    }
+}
+
 impl Section<'_> {
     pub fn new() -> Self {
         Section {

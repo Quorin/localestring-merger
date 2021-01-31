@@ -1,19 +1,17 @@
 use crate::convert::{convert_data, ConvertError};
-use crate::parse::{merge_sections, parse_data, ParseError};
+use crate::find::find_occurrences;
+use crate::parse::{merge_sections, parse_data, read_file, ParseError};
 use crate::section::Language;
 use crate::section::Language::{EN, PL};
 use dialoguer::theme::ColorfulTheme;
 use dialoguer::{Input, Select};
+use std::fmt::{Display, Formatter};
 use std::path::Path;
-use std::{
-    fmt::{Display, Formatter},
-    fs::read_to_string,
-};
 
 pub enum Action {
     Merge,
     Convert,
-    FindMissing,
+    FindIncomplete,
 }
 
 impl Display for Action {
@@ -21,7 +19,7 @@ impl Display for Action {
         match self {
             Action::Merge => write!(f, "{}", "Merge translations"),
             Action::Convert => write!(f, "{}", "Convert old file"),
-            Action::FindMissing => write!(f, "{}", "Find missing translations"),
+            Action::FindIncomplete => write!(f, "{}", "Find incomplete translations"),
         }
     }
 }
@@ -31,7 +29,7 @@ impl From<usize> for Action {
         match v {
             0 => Action::Merge,
             1 => Action::Convert,
-            2 => Action::FindMissing,
+            2 => Action::FindIncomplete,
             _ => unreachable!(),
         }
     }
@@ -48,7 +46,7 @@ impl From<usize> for Language {
 }
 
 pub fn run() -> std::io::Result<()> {
-    let select_items = vec![Action::Merge, Action::Convert, Action::FindMissing];
+    let select_items = vec![Action::Merge, Action::Convert, Action::FindIncomplete];
     let theme = &ColorfulTheme::default();
     let option: Action = Select::with_theme(theme)
         .with_prompt("Choose action:")
@@ -74,8 +72,6 @@ pub fn run() -> std::io::Result<()> {
                 .default("locale_string_new.txt".into())
                 .interact_text()?;
 
-            // merge
-
             merge(&cur_file, &newer_file, &save_file).unwrap();
         }
         Action::Convert => {
@@ -97,27 +93,47 @@ pub fn run() -> std::io::Result<()> {
                 .default("locale_string_new.txt".into())
                 .interact_text()?;
 
-            // convert
-
             convert(&old_file, &new_file, lang).unwrap();
         }
-        Action::FindMissing => {
+        Action::FindIncomplete => {
             let file: String = Input::with_theme(theme)
                 .with_prompt("Enter the filename containing translations")
                 .default("locale_string.txt".into())
                 .interact_text()?;
+
+            let save_file: String = Input::with_theme(theme)
+                .with_prompt("Enter the filename to which incomplete translations will be saved")
+                .default("locale_string_incomplete.txt".into())
+                .interact_text()?;
+
+            find_incomplete(&file, &save_file).unwrap();
         }
     }
 
     Ok(())
 }
 
-fn convert<T, U>(old_file: T, save_file: U, lang: Language) -> Result<(), ConvertError>
+fn find_incomplete<T>(file: T, save_file: T) -> Result<(), ParseError>
 where
     T: AsRef<Path>,
-    U: AsRef<Path>,
 {
-    let old_data = &*read_to_string(old_file)?;
+    let data = &*read_file(file)?;
+    let parsed_data = parse_data(data)?;
+    let occurrences: String = find_occurrences(parsed_data)
+        .iter()
+        .map(|s| format!("{}\n", *s))
+        .collect();
+
+    let _ = std::fs::write(save_file, &occurrences)?;
+
+    Ok(())
+}
+
+fn convert<T>(old_file: T, save_file: T, lang: Language) -> Result<(), ConvertError>
+where
+    T: AsRef<Path>,
+{
+    let old_data = &*read_file(old_file)?;
     let converted_data = convert_data(old_data, lang)?;
     let generated: String = converted_data
         .iter()
@@ -129,14 +145,12 @@ where
     Ok(())
 }
 
-fn merge<T, U, V>(cur_file: T, new_file: U, save_file: V) -> Result<(), ParseError>
+fn merge<T>(cur_file: T, new_file: T, save_file: T) -> Result<(), ParseError>
 where
     T: AsRef<Path>,
-    U: AsRef<Path>,
-    V: AsRef<Path>,
 {
-    let cur_data = &*read_to_string(cur_file)?;
-    let new_data = &*read_to_string(new_file)?;
+    let cur_data = &*read_file(cur_file)?;
+    let new_data = &*read_file(new_file)?;
 
     let cur_sections = parse_data(cur_data)?;
     let new_sections = parse_data(new_data)?;

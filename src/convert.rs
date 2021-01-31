@@ -1,4 +1,3 @@
-use crate::parse::{omit_line, ParseError};
 use crate::section::{Language, Section};
 use std::collections::BTreeMap;
 use thiserror::Error;

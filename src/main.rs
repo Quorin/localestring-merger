@@ -1,9 +1,8 @@
-#![allow(dead_code)]
-#![allow(unused_variables)]
 use crate::cmd::run;
 
 mod cmd;
 mod convert;
+mod find;
 mod parse;
 mod section;
 
