@@ -5,6 +5,7 @@ use thiserror::Error;
 
 use crate::section::Language::{EN, PL};
 use crate::section::{Language, Section};
+use std::collections::BTreeMap;
 
 #[derive(Debug, PartialEq)]
 pub enum KeywordActions {
@@ -54,6 +55,8 @@ pub enum ParseError {
     Empty(String),
     #[error("language {0} already exists in label {1}")]
     LanguageDuplicate(Language, String),
+    #[error("label {0} duplicate")]
+    LabelDuplicate(String),
     #[error(transparent)]
     Io(#[from] std::io::Error),
 }
@@ -86,7 +89,9 @@ pub fn parse_data(data: &str) -> Result<Vec<Section>, ParseError> {
                         if last.translations.contains_key(&lang) {
                             return Err(ParseError::LanguageDuplicate(lang, last.label.to_owned()));
                         }
-                        last.translations.insert(lang, e);
+                        if let Some(_) = last.translations.insert(lang, e) {
+                            return Err(ParseError::LabelDuplicate(last.label.to_owned()));
+                        }
                     }
                     _ => {}
                 }
@@ -114,6 +119,25 @@ pub fn merge_sections<'a>(mut base: Vec<Section<'a>>, new: Vec<Section<'a>>) -> 
     }
 
     base
+}
+
+pub fn parse_clientside(data: &str) -> Result<BTreeMap<String, String>, ParseError> {
+    let mut map = BTreeMap::new();
+
+    for x in data.lines().map(|l| l.trim()) {
+        if omit_line(x) {
+            continue;
+        }
+
+        let split: Vec<&str> = x.split("\t").collect();
+        let (label_slice, translation_slice) = split.split_at(1);
+        let label = label_slice.join("");
+        if let Some(_) = map.insert(label, translation_slice.join("")) {
+            return Err(ParseError::LabelDuplicate(label_slice.join("")));
+        }
+    }
+
+    Ok(map)
 }
 
 #[cfg(test)]

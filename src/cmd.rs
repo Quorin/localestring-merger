@@ -1,5 +1,5 @@
 use crate::convert::{convert_data, ConvertError};
-use crate::find::find_incomplete_sections;
+use crate::find::{find_incomplete_sections, find_missing_labels};
 use crate::parse::{merge_sections, parse_data, read_file, ParseError};
 use crate::section::Language;
 use crate::section::Language::{EN, PL};
@@ -7,6 +7,33 @@ use dialoguer::theme::ColorfulTheme;
 use dialoguer::{Input, Select};
 use std::fmt::{Display, Formatter};
 use std::path::Path;
+
+#[derive(Copy, Clone, PartialEq)]
+pub enum LocaleType {
+    LocaleString,        // serverside
+    LocaleGameInterface, // clientside
+}
+
+impl Display for LocaleType {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        match self {
+            LocaleType::LocaleString => write!(f, "locale_string (server-side)"),
+            LocaleType::LocaleGameInterface => {
+                write!(f, "locale_game/locale_interface (client-side)")
+            }
+        }
+    }
+}
+
+impl From<usize> for LocaleType {
+    fn from(v: usize) -> Self {
+        match v {
+            0 => LocaleType::LocaleString,
+            1 => LocaleType::LocaleGameInterface,
+            _ => unreachable!(),
+        }
+    }
+}
 
 pub enum Action {
     Merge,
@@ -100,17 +127,50 @@ pub fn run() -> std::io::Result<()> {
             }
         }
         Action::FindIncomplete => {
-            let file: String = Input::with_theme(theme)
-                .with_prompt("Enter the filename containing translations")
-                .default("locale_string.txt".into())
-                .interact_text()?;
+            let locale_types = vec![LocaleType::LocaleString, LocaleType::LocaleGameInterface];
+            let selected_locale_type: LocaleType = Select::with_theme(theme)
+                .with_prompt("Choose file type:")
+                .items(&locale_types)
+                .default(0)
+                .interact()?
+                .into();
+
+            let mut file: Option<String> = None;
+            let mut second_file: Option<String> = None;
+
+            if selected_locale_type == LocaleType::LocaleGameInterface {
+                file = Some(
+                    Input::with_theme(theme)
+                        .with_prompt("Enter the filename containing translations")
+                        .default("locale_game.txt".into())
+                        .interact_text()?,
+                );
+                second_file = Some(
+                    Input::with_theme(theme)
+                        .with_prompt("Enter the filename containing translations to compare")
+                        .default("locale_game2.txt".into())
+                        .interact_text()?,
+                );
+            } else {
+                file = Some(
+                    Input::with_theme(theme)
+                        .with_prompt("Enter the filename containing translations")
+                        .default("locale_string.txt".into())
+                        .interact_text()?,
+                );
+            }
 
             let save_file: String = Input::with_theme(theme)
                 .with_prompt("Enter the filename to which incomplete translations will be saved")
                 .default("locale_string_incomplete.txt".into())
                 .interact_text()?;
 
-            if let Err(e) = find_incomplete(&file, &save_file) {
+            if let Err(e) = find_incomplete(
+                file.as_ref(),
+                second_file.as_ref(),
+                &save_file,
+                selected_locale_type,
+            ) {
                 println!("Error: {:#?}", e);
             }
         }
@@ -119,16 +179,35 @@ pub fn run() -> std::io::Result<()> {
     Ok(())
 }
 
-fn find_incomplete<T>(file: T, save_file: T) -> Result<(), ParseError>
+fn find_incomplete<T>(
+    file: Option<T>,
+    second_file: Option<T>,
+    save_file: T,
+    locale_type: LocaleType,
+) -> Result<(), ParseError>
 where
     T: AsRef<Path>,
 {
-    let data = &*read_file(file)?;
-    let parsed_data = parse_data(data)?;
-    let occurrences: String = find_incomplete_sections(parsed_data)
-        .iter()
-        .map(|s| format!("{}\n", *s))
-        .collect();
+    let data = &*read_file(file.unwrap())?;
+    let occurrences: String = match locale_type {
+        LocaleType::LocaleString => {
+            let parsed_data = parse_data(data)?;
+
+            find_incomplete_sections(parsed_data)
+                .iter()
+                .map(|s| format!("{}\n", *s))
+                .collect()
+        }
+
+        LocaleType::LocaleGameInterface => {
+            let second_file_data = &*read_file(second_file.unwrap())?;
+
+            find_missing_labels(data, second_file_data)?
+                .iter()
+                .map(|s| format!("{}\n", *s))
+                .collect()
+        }
+    };
 
     let _ = std::fs::write(save_file, &occurrences)?;
 
