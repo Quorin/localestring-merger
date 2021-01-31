@@ -57,6 +57,8 @@ pub enum ParseError {
     LanguageDuplicate(Language, String),
     #[error("label {0} duplicate")]
     LabelDuplicate(String),
+    #[error("argument count in label {0} is not equal everywhere")]
+    ArgumentMismatch(String),
     #[error(transparent)]
     Io(#[from] std::io::Error),
 }

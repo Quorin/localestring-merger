@@ -2,6 +2,8 @@ use crate::section::Language::{EN, PL};
 use std::collections::BTreeMap;
 use std::fmt::{Display, Formatter};
 
+static ARGUMENT_TYPES: [&str; 4] = ["%d", "%s", "%ld", "%%"];
+
 #[derive(Debug, PartialEq)]
 pub struct Section<'a> {
     pub label: &'a str,
@@ -41,6 +43,24 @@ impl Section<'_> {
             label = &self.label,
             translations = args
         )
+    }
+
+    pub fn check_translations_arguments(&self) -> bool {
+        for x in ARGUMENT_TYPES.iter() {
+            let counts = &self
+                .translations
+                .iter()
+                .map(|(_, tr)| tr.match_indices(x).count())
+                .collect::<Vec<usize>>();
+
+            if !counts.is_empty() {
+                if !counts.iter().all(|f| counts.first() == Some(f)) {
+                    return false;
+                }
+            }
+        }
+
+        true
     }
 }
 

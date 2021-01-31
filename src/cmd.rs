@@ -135,7 +135,7 @@ pub fn run() -> std::io::Result<()> {
                 .interact()?
                 .into();
 
-            let mut file: Option<String> = None;
+            let file: Option<String>;
             let mut second_file: Option<String> = None;
 
             if selected_locale_type == LocaleType::LocaleGameInterface {
@@ -240,6 +240,13 @@ where
     let cur_sections = parse_data(cur_data)?;
     let new_sections = parse_data(new_data)?;
     let merged = merge_sections(cur_sections, new_sections);
+
+    for s in &merged {
+        if !s.check_translations_arguments() {
+            return Err(ParseError::ArgumentMismatch(s.label.to_string()));
+        }
+    }
+
     let generated: String = merged
         .iter()
         .map(|f| format!("{}\n\n", f.generate()))
