@@ -1,5 +1,5 @@
 use crate::convert::{convert_data, ConvertError};
-use crate::find::find_occurrences;
+use crate::find::find_incomplete_sections;
 use crate::parse::{merge_sections, parse_data, read_file, ParseError};
 use crate::section::Language;
 use crate::section::Language::{EN, PL};
@@ -72,7 +72,9 @@ pub fn run() -> std::io::Result<()> {
                 .default("locale_string_new.txt".into())
                 .interact_text()?;
 
-            merge(&cur_file, &newer_file, &save_file).unwrap();
+            if let Err(e) = merge(&cur_file, &newer_file, &save_file) {
+                println!("Error: {:#?}", e);
+            }
         }
         Action::Convert => {
             let old_file: String = Input::with_theme(theme)
@@ -93,7 +95,9 @@ pub fn run() -> std::io::Result<()> {
                 .default("locale_string_new.txt".into())
                 .interact_text()?;
 
-            convert(&old_file, &new_file, lang).unwrap();
+            if let Err(e) = convert(&old_file, &new_file, lang) {
+                println!("Error: {:#?}", e);
+            }
         }
         Action::FindIncomplete => {
             let file: String = Input::with_theme(theme)
@@ -106,7 +110,9 @@ pub fn run() -> std::io::Result<()> {
                 .default("locale_string_incomplete.txt".into())
                 .interact_text()?;
 
-            find_incomplete(&file, &save_file).unwrap();
+            if let Err(e) = find_incomplete(&file, &save_file) {
+                println!("Error: {:#?}", e);
+            }
         }
     }
 
@@ -119,7 +125,7 @@ where
 {
     let data = &*read_file(file)?;
     let parsed_data = parse_data(data)?;
-    let occurrences: String = find_occurrences(parsed_data)
+    let occurrences: String = find_incomplete_sections(parsed_data)
         .iter()
         .map(|s| format!("{}\n", *s))
         .collect();

@@ -40,3 +40,43 @@ pub fn convert_data(data: &str, lang: Language) -> Result<Vec<Section>, ConvertE
 
     Ok(sections)
 }
+
+#[cfg(test)]
+mod tests {
+    use crate::convert::convert_data;
+    use crate::section::Language::PL;
+    use crate::section::Section;
+
+    #[test]
+    fn converts() {
+        let s = "\
+\"hello\";\n\
+\"world\";";
+
+        let mut section = Section::new();
+        section.label = "hello";
+        section.translations.insert(PL, "world");
+
+        let convert = convert_data(s, PL);
+
+        assert!(convert.is_ok());
+        assert_eq!(convert.unwrap(), vec![section]);
+    }
+
+    #[test]
+    fn error_if_not_enough_lines() {
+        let s = "\
+\"hello\";";
+
+        let convert = convert_data(s, PL);
+        assert!(convert.is_err());
+    }
+
+    #[test]
+    fn error_if_empty() {
+        let s = "";
+
+        let convert = convert_data(s, PL);
+        assert!(convert.is_err());
+    }
+}
