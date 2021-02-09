@@ -12,8 +12,15 @@ pub enum ConvertError {
     Io(#[from] std::io::Error),
 }
 
-pub fn convert_data(data: &str, lang: Language) -> Result<Vec<Section>, ConvertError> {
+pub fn convert_data<'a, T: ?Sized>(
+    data: &'a T,
+    lang: Language,
+) -> Result<Vec<Section<'a>>, ConvertError>
+where
+    T: AsRef<str>,
+{
     let lines: Vec<&str> = data
+        .as_ref()
         .lines()
         .map(|l| l.trim().trim_matches(|c| c == '\"' || c == ';'))
         .filter(|l| !l.is_empty() && !l.starts_with("#"))

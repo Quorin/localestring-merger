@@ -64,9 +64,12 @@ impl Section<'_> {
     }
 }
 
-pub fn check_string_arguments(left: &str, right: &str) -> bool {
+pub fn check_string_arguments<T>(left: T, right: T) -> bool
+where
+    T: AsRef<str>,
+{
     for x in ARGUMENT_TYPES.iter() {
-        if left.match_indices(x).count() != right.match_indices(x).count() {
+        if left.as_ref().match_indices(x).count() != right.as_ref().match_indices(x).count() {
             return false;
         }
     }

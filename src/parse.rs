@@ -25,14 +25,20 @@ pub fn read_file<T: AsRef<Path>>(filepath: T) -> std::io::Result<String> {
     read_to_string(filepath)
 }
 
-pub fn omit_line(line: &str) -> bool {
-    line.starts_with("#") || line.is_empty()
+pub fn omit_line<T>(line: T) -> bool
+where
+    T: AsRef<str>,
+{
+    line.as_ref().starts_with("#") || line.as_ref().is_empty()
 }
 
-fn extract_text<'a>(text: &'a str, key: &'a str) -> Option<&'a str> {
-    let elements = text.split("\t").collect::<Vec<&str>>();
+fn extract_text<'a, T: ?Sized>(text: &'a T, key: &'a T) -> Option<&'a str>
+where
+    T: AsRef<str>,
+{
+    let elements = text.as_ref().split("\t").collect::<Vec<&str>>();
     if match elements.get(0) {
-        Some(v) => v.starts_with(key),
+        Some(v) => v.starts_with(key.as_ref()),
         None => return None,
     } {
         let val = match elements.get(1) {
@@ -63,10 +69,13 @@ pub enum ParseError {
     Io(#[from] std::io::Error),
 }
 
-pub fn parse_data(data: &str) -> Result<Vec<Section>, ParseError> {
+pub fn parse_data<'a, T: ?Sized>(data: &'a T) -> Result<Vec<Section<'a>>, ParseError>
+where
+    T: AsRef<str>,
+{
     let mut v: Vec<Section> = vec![];
 
-    for x in data.lines().map(|l| l.trim()) {
+    for x in data.as_ref().lines().map(|l| l.trim()) {
         if omit_line(x) {
             continue;
         }
@@ -123,10 +132,13 @@ pub fn merge_sections<'a>(mut base: Vec<Section<'a>>, new: Vec<Section<'a>>) -> 
     base
 }
 
-pub fn parse_clientside(data: &str) -> Result<BTreeMap<String, String>, ParseError> {
+pub fn parse_clientside<T>(data: T) -> Result<BTreeMap<String, String>, ParseError>
+where
+    T: AsRef<str>,
+{
     let mut map = BTreeMap::new();
 
-    for x in data.lines().map(|l| l.trim()) {
+    for x in data.as_ref().lines().map(|l| l.trim()) {
         if omit_line(x) {
             continue;
         }

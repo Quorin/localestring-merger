@@ -13,7 +13,10 @@ pub fn find_incomplete_sections(sections: Vec<Section>) -> Vec<&str> {
     unfinished_translations
 }
 
-pub fn find_missing_labels<'a>(data: &str, second_data: &str) -> Result<Vec<String>, ParseError> {
+pub fn find_missing_labels<'a, T>(data: T, second_data: T) -> Result<Vec<String>, ParseError>
+where
+    T: AsRef<str>,
+{
     let first_map = parse_clientside(data)?;
     let second_map = parse_clientside(second_data)?;
     let mut missing_vec: Vec<String> = vec![];
