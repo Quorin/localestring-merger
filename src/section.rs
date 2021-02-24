@@ -45,6 +45,22 @@ impl Section<'_> {
         )
     }
 
+    pub fn check_translations_diversity(&self) -> bool {
+        for x in &self.translations {
+            for y in &self.translations {
+                if x.0 == y.0 {
+                    continue;
+                }
+
+                if x.1 == y.1 {
+                    return false;
+                }
+            }
+        }
+
+        true
+    }
+
     pub fn check_translations_arguments(&self) -> bool {
         for x in ARGUMENT_TYPES.iter() {
             let counts = &self

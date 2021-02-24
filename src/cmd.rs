@@ -11,7 +11,8 @@ use std::path::Path;
 
 #[derive(Copy, Clone, PartialEq)]
 pub enum LocaleType {
-    LocaleString,        // serverside
+    LocaleString,
+    // serverside
     LocaleGameInterface, // clientside
 }
 
@@ -36,20 +37,23 @@ impl From<usize> for LocaleType {
     }
 }
 
+#[derive(PartialEq)]
 pub enum Action {
     Merge,
     Convert,
     FindIncomplete,
     CheckArguments,
+    CheckTranslationsDiversity,
 }
 
 impl Display for Action {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         match self {
-            Action::Merge => write!(f, "{}", "Merge translations"),
-            Action::Convert => write!(f, "{}", "Convert old file"),
-            Action::FindIncomplete => write!(f, "{}", "Find incomplete translations"),
-            Action::CheckArguments => write!(f, "{}", "Check arguments"),
+            Action::Merge => write!(f, "Merge translations"),
+            Action::Convert => write!(f, "Convert old file"),
+            Action::FindIncomplete => write!(f, "Find incomplete translations"),
+            Action::CheckArguments => write!(f, "Check arguments"),
+            Action::CheckTranslationsDiversity => write!(f, "Check translations diversity"),
         }
     }
 }
@@ -61,6 +65,7 @@ impl From<usize> for Action {
             1 => Action::Convert,
             2 => Action::FindIncomplete,
             3 => Action::CheckArguments,
+            4 => Action::CheckTranslationsDiversity,
             _ => unreachable!(),
         }
     }
@@ -82,6 +87,7 @@ pub fn run() -> std::io::Result<()> {
         Action::Convert,
         Action::FindIncomplete,
         Action::CheckArguments,
+        Action::CheckTranslationsDiversity,
     ];
     let theme = &ColorfulTheme::default();
     let option: Action = Select::with_theme(theme)
@@ -183,7 +189,7 @@ pub fn run() -> std::io::Result<()> {
                 println!("Error: {:#?}", e);
             }
         }
-        Action::CheckArguments => {
+        Action::CheckArguments | Action::CheckTranslationsDiversity => {
             let locale_types = vec![LocaleType::LocaleString, LocaleType::LocaleGameInterface];
             let selected_locale_type: LocaleType = Select::with_theme(theme)
                 .with_prompt("Choose file type:")
@@ -217,11 +223,79 @@ pub fn run() -> std::io::Result<()> {
                 );
             }
 
-            if let Err(e) =
-                check_arguments(file.as_ref(), second_file.as_ref(), selected_locale_type)
-            {
-                println!("Error: {:#?}", e);
+            if option == Action::CheckTranslationsDiversity {
+                let save_file: String = Input::with_theme(theme)
+                    .with_prompt(
+                        "Enter the filename to which incomplete translations will be saved",
+                    )
+                    .default("locale_string_no_diversity.txt".into())
+                    .interact_text()?;
+
+                if let Err(e) = check_diversity(
+                    file.as_ref(),
+                    second_file.as_ref(),
+                    &save_file,
+                    selected_locale_type,
+                ) {
+                    println!("Error: {:#?}", e);
+                }
+            } else {
+                if let Err(e) =
+                    check_arguments(file.as_ref(), second_file.as_ref(), selected_locale_type)
+                {
+                    println!("Error: {:#?}", e);
+                }
             }
+        }
+    }
+
+    Ok(())
+}
+
+fn check_diversity<T>(
+    file: Option<T>,
+    secondary_file: Option<T>,
+    save_file: T,
+    locale_type: LocaleType,
+) -> Result<(), ParseError>
+where
+    T: AsRef<Path>,
+{
+    let first_file_data = &*read_file(file.unwrap())?;
+    match locale_type {
+        LocaleType::LocaleString => {
+            let sections = parse_data(first_file_data)?;
+            let missing_diversity_sections: String = sections
+                .iter()
+                .filter(|s| !s.check_translations_diversity())
+                .map(|s| format!("{}\n", s.label))
+                .collect();
+
+            let _ = std::fs::write(save_file, &missing_diversity_sections)?;
+        }
+        LocaleType::LocaleGameInterface => {
+            let second_file_data = &*read_file(secondary_file.unwrap())?;
+
+            let map_first = parse_clientside(first_file_data)?;
+            let map_second = parse_clientside(second_file_data)?;
+
+            let mut diversity_vec = vec![];
+
+            for (k, v) in map_first.iter() {
+                if let Some(map_value) = map_second.get(k) {
+                    if map_value == v {
+                        diversity_vec.push(v);
+                    }
+                }
+            }
+
+            let _ = std::fs::write(
+                save_file,
+                &diversity_vec
+                    .iter()
+                    .map(|s| format!("{}\n", *s))
+                    .collect::<String>(),
+            )?;
         }
     }
 
