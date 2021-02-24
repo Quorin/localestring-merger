@@ -226,7 +226,7 @@ pub fn run() -> std::io::Result<()> {
             if option == Action::CheckTranslationsDiversity {
                 let save_file: String = Input::with_theme(theme)
                     .with_prompt(
-                        "Enter the filename to which incomplete translations will be saved",
+                        "Enter the filename to which translations without diversity will be saved",
                     )
                     .default("locale_string_no_diversity.txt".into())
                     .interact_text()?;
